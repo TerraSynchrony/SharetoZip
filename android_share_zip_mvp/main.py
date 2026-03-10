@@ -6,6 +6,7 @@ Receives shared files via Android intent and compresses them into a .zip file.
 import os
 import zipfile
 from datetime import datetime
+from functools import wraps
 
 from kivy.app import App
 from kivy.uix.label import Label
@@ -16,7 +17,11 @@ from kivy.uix.scrollview import ScrollView
 
 # No-op fallback; on Android this is replaced with the real UI-thread dispatcher.
 def run_on_ui_thread(func):
-    return func
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    return wrapper
 
 
 try:
