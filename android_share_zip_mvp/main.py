@@ -6,12 +6,14 @@ Receives shared files via Android intent and compresses them into a .zip file.
 import os
 import zipfile
 from datetime import datetime
+from functools import wraps
 
 from kivy.app import App
 from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
+
 
 try:
     from android import activity
@@ -20,16 +22,23 @@ try:
 
     Intent = autoclass("android.content.Intent")
     Uri = autoclass("android.net.Uri")
-    ClipData = autoclass("android.content.ClipData")
     ANDROID = True
 except ImportError:
     ANDROID = False
+
+    def run_on_ui_thread(func):
+        """Fallback decorator for non-Android runs; returns the original callable."""
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapper
 
 
 def get_shared_uris(intent):
     """Extract URIs from an Android share intent (single or multiple files)."""
     uris = []
-    if intent is None:
+    if not ANDROID or intent is None:
         return uris
 
     action = intent.getAction()
@@ -38,10 +47,9 @@ def get_shared_uris(intent):
         if uri:
             uris.append(uri)
     elif action == "android.intent.action.SEND_MULTIPLE":
-        clip = intent.getClipData()
-        if clip:
-            for i in range(clip.getItemCount()):
-                uri = clip.getItemAt(i).getUri()
+        stream_list = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
+        if stream_list:
+            for uri in stream_list.toArray():
                 if uri:
                     uris.append(uri)
 
@@ -78,7 +86,8 @@ def stream_uri_to_zip(context, uri, zf, arcname):
         buf = bytearray(65536)
         with zf.open(arcname, "w") as dest:
             while True:
-                n = input_stream.read(buf)
+                # Use the 3-arg overload so pyjnius dispatches InputStream.read(byte[], int, int).
+                n = input_stream.read(buf, 0, len(buf))
                 if n < 0:
                     break
                 dest.write(bytes(buf[:n]))
@@ -173,6 +182,7 @@ class ShareToZipApp(App):
 
         return self.layout
 
+    @run_on_ui_thread
     def on_new_intent(self, intent):
         self.handle_intent(intent)
 

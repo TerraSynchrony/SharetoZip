@@ -1,0 +1,10 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Buildozer / build artifacts
+.buildozer/
+android_share_zip_mvp/bin/
+
+# IDE / misc
+*.apk
