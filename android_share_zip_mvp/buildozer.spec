@@ -36,6 +36,12 @@ android.enable_androidx = True
 # local builders should install the same version so the `aidl` compiler is present.
 android.build_tools = 34.0.0
 
+# Skip SDK update checks to avoid downloading RC/preview versions
+android.skip_update = True
+
+# Accept SDK license automatically
+android.accept_sdk_license = True
+
 [buildozer]
 
 # Buildozer log level (0 = error, 1 = info, 2 = debug)

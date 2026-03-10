@@ -42,16 +42,13 @@ jobs:
       - name: Install Android SDK build-tools and platform-tools
         run: |
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
+          # Accept all licenses including preview licenses
           yes | sdkmanager --licenses || true
-          TARGET_BUILD_TOOLS=34.0.0
-          FALLBACK_BUILD_TOOLS=33.0.2
-          if sdkmanager --install "build-tools;${TARGET_BUILD_TOOLS}"; then
-            echo "Installed build-tools ${TARGET_BUILD_TOOLS}"
-          else
-            echo "Falling back to build-tools ${FALLBACK_BUILD_TOOLS}"
-            sdkmanager --install "build-tools;${FALLBACK_BUILD_TOOLS}"
-          fi
-          sdkmanager --install "platform-tools"
+          # Pre-install build-tools 34.0.0 in buildozer's expected location
+          mkdir -p $HOME/.buildozer/android/platform/android-sdk
+          sdkmanager --sdk_root=$HOME/.buildozer/android/platform/android-sdk --install "build-tools;34.0.0" "platform-tools" "platforms;android-33"
+          # Accept licenses for buildozer's SDK location as well
+          yes | sdkmanager --sdk_root=$HOME/.buildozer/android/platform/android-sdk --licenses || true
 
       - name: Install Python dependencies
         run: |
