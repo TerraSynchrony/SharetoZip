@@ -13,18 +13,21 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
 
+
+def run_on_ui_thread(func):
+    return func
+
+
 try:
     from android import activity
-    from android.runnable import run_on_ui_thread
+    from android.runnable import run_on_ui_thread as android_run_on_ui_thread
     from jnius import autoclass
 
+    run_on_ui_thread = android_run_on_ui_thread
     Intent = autoclass("android.content.Intent")
     Uri = autoclass("android.net.Uri")
     ANDROID = True
 except ImportError:
-    def run_on_ui_thread(func):
-        return func
-
     ANDROID = False
 
 
