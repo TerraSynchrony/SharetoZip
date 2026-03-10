@@ -15,7 +15,8 @@ from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
 
 
-# No-op fallback; on Android this is replaced with the real UI-thread dispatcher.
+# No-op fallback used only when Android imports fail; overridden by the Android
+# implementation in the try block below.
 def run_on_ui_thread(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
