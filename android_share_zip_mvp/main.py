@@ -14,6 +14,7 @@ from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
 
 
+# No-op fallback; on Android this is replaced with the real UI-thread dispatcher.
 def run_on_ui_thread(func):
     return func
 

@@ -32,6 +32,7 @@ android.archs   = arm64-v8a
 # Enable AndroidX
 android.enable_androidx = True
 
+# Pin to the build-tools installed in CI to ensure `aidl` is available.
 android.build_tools = 34.0.0
 
 [buildozer]
