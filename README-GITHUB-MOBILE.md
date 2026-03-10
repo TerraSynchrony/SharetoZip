@@ -17,7 +17,7 @@ Upload the contents of this bundle so the repo contains:
 3. Create the workflow file at `.github/workflows/build-apk.yml` using the file from this bundle.
 4. Open the repo's **Actions** tab.
 5. Run **Build APK**.
-6. After the workflow finishes, open the run and download the `sharetozip-apk` artifact.
+6. After the workflow finishes, open the run and download the `sharetozip-debug-apk` artifact.
 7. Install the APK on Android when prompted.
 8. Share multiple files into the app and check **Downloads** for the generated ZIP.
 
