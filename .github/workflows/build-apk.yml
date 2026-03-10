@@ -14,6 +14,10 @@ jobs:
     permissions:
       contents: read
 
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,6 +39,12 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install buildozer cython
+
+      - name: Install Android SDK build-tools and platform-tools
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager --install "build-tools;34.0.0" || sdkmanager --install "build-tools;33.0.2"
+          sdkmanager --install "platform-tools"
 
       - name: Cache Buildozer global directory
         uses: actions/cache@v4
