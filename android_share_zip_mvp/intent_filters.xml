@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Intent filters for SharetoZip.
+    These are merged into AndroidManifest.xml by Buildozer so the app
+    appears in the Android "Share to" chooser for any file type.
+-->
+<manifest>
+    <application>
+        <activity android:name="org.kivy.android.PythonActivity">
+
+            <!-- Receive a single shared file of any MIME type -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+
+            <!-- Receive multiple shared files of any MIME type -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+
+        </activity>
+    </application>
+</manifest>
