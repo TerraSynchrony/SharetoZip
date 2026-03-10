@@ -26,7 +26,6 @@ try:
 except ImportError:
     ANDROID = False
 
-    # No-op fallback used only when Android imports fail.
     def run_on_ui_thread(func):
         """Fallback decorator for non-Android runs; returns the original callable."""
         @wraps(func)
