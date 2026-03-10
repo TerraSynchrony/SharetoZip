@@ -35,7 +35,7 @@ except ImportError:
 def get_shared_uris(intent):
     """Extract URIs from an Android share intent (single or multiple files)."""
     uris = []
-    if intent is None:
+    if not ANDROID or intent is None:
         return uris
 
     action = intent.getAction()
