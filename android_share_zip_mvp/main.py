@@ -86,6 +86,7 @@ def stream_uri_to_zip(context, uri, zf, arcname):
         buf = bytearray(65536)
         with zf.open(arcname, "w") as dest:
             while True:
+                # Use the 3-arg overload so pyjnius dispatches InputStream.read(byte[], int, int).
                 n = input_stream.read(buf, 0, len(buf))
                 if n < 0:
                     break

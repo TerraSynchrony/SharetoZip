@@ -33,7 +33,7 @@ android.archs   = arm64-v8a
 android.enable_androidx = True
 
 # Pin to the build-tools installed in CI (see .github/workflows/build-apk.yml);
-# this version includes the `aidl` compiler that Buildozer/Android packaging requires.
+# local builders should install the same version so the `aidl` compiler is present.
 android.build_tools = 34.0.0
 
 [buildozer]
