@@ -20,9 +20,11 @@ try:
 
     Intent = autoclass("android.content.Intent")
     Uri = autoclass("android.net.Uri")
-    ClipData = autoclass("android.content.ClipData")
     ANDROID = True
 except ImportError:
+    def run_on_ui_thread(func):
+        return func
+
     ANDROID = False
 
 
@@ -38,10 +40,9 @@ def get_shared_uris(intent):
         if uri:
             uris.append(uri)
     elif action == "android.intent.action.SEND_MULTIPLE":
-        clip = intent.getClipData()
-        if clip:
-            for i in range(clip.getItemCount()):
-                uri = clip.getItemAt(i).getUri()
+        stream_list = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
+        if stream_list:
+            for uri in stream_list.toArray():
                 if uri:
                     uris.append(uri)
 
@@ -78,7 +79,7 @@ def stream_uri_to_zip(context, uri, zf, arcname):
         buf = bytearray(65536)
         with zf.open(arcname, "w") as dest:
             while True:
-                n = input_stream.read(buf)
+                n = input_stream.read(buf, 0, len(buf))
                 if n < 0:
                     break
                 dest.write(bytes(buf[:n]))
@@ -173,6 +174,7 @@ class ShareToZipApp(App):
 
         return self.layout
 
+    @run_on_ui_thread
     def on_new_intent(self, intent):
         self.handle_intent(intent)
 

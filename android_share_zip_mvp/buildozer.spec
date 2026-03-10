@@ -18,8 +18,8 @@ requirements    = python3,kivy,pyjnius,android
 # Android manifest extras
 android.manifest.intent_filters = intent_filters.xml
 
-# Permissions required to read shared files
-android.permissions = READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
+# Permissions required to read shared files (Android 13+)
+android.permissions = READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,READ_MEDIA_IMAGES,READ_MEDIA_VIDEO,READ_MEDIA_AUDIO
 
 # Target / minimum Android API levels
 android.api     = 33
@@ -32,8 +32,7 @@ android.archs   = arm64-v8a
 # Enable AndroidX
 android.enable_androidx = True
 
-# Entry point
-entrypoint      = main.py
+android.build_tools = 34.0.0
 
 [buildozer]
 
