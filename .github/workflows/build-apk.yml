@@ -48,23 +48,36 @@ jobs:
           # Accept all SDK licenses (standard + preview) upfront
           yes | sdkmanager --licenses || true
           
-          # Create buildozer SDK directory and install specific build-tools version
-          mkdir -p $HOME/.buildozer/android/platform/android-sdk/licenses
+          # Create buildozer SDK directory structure
+          BUILDOZER_SDK=$HOME/.buildozer/android/platform/android-sdk
+          mkdir -p "$BUILDOZER_SDK"
           
-          # Copy licenses from system SDK to buildozer SDK location
-          cp -r $ANDROID_SDK_ROOT/licenses/* $HOME/.buildozer/android/platform/android-sdk/licenses/ 2>/dev/null || true
+          # Copy cmdline-tools to buildozer's SDK location
+          cp -r "$ANDROID_SDK_ROOT/cmdline-tools" "$BUILDOZER_SDK/" 2>/dev/null || true
+          
+          # Create the legacy 'tools' path that buildozer expects
+          mkdir -p "$BUILDOZER_SDK/tools/bin"
+          ln -sf "$BUILDOZER_SDK/cmdline-tools/latest/bin/sdkmanager" "$BUILDOZER_SDK/tools/bin/sdkmanager"
+          ln -sf "$BUILDOZER_SDK/cmdline-tools/latest/bin/avdmanager" "$BUILDOZER_SDK/tools/bin/avdmanager"
+          
+          # Copy licenses to buildozer SDK location
+          mkdir -p "$BUILDOZER_SDK/licenses"
+          cp -r "$ANDROID_SDK_ROOT/licenses/"* "$BUILDOZER_SDK/licenses/" 2>/dev/null || true
           
           # Install specific build-tools version at buildozer's expected location
-          sdkmanager --sdk_root=$HOME/.buildozer/android/platform/android-sdk --install \
+          "$BUILDOZER_SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$BUILDOZER_SDK" --install \
             "build-tools;34.0.0" \
             "platform-tools" \
             "platforms;android-33"
           
           # Accept all licenses for buildozer's SDK location
-          yes | sdkmanager --sdk_root=$HOME/.buildozer/android/platform/android-sdk --licenses || true
+          yes | "$BUILDOZER_SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$BUILDOZER_SDK" --licenses || true
           
           # Verify installation
-          ls -la $HOME/.buildozer/android/platform/android-sdk/build-tools/
+          echo "Build-tools installed:"
+          ls -la "$BUILDOZER_SDK/build-tools/"
+          echo "SDK structure:"
+          ls -la "$BUILDOZER_SDK/"
 
       - name: Install Python dependencies
         run: |
