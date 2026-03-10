@@ -15,17 +15,6 @@ from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
 
 
-# No-op fallback used only when Android imports fail; overridden by the Android
-# implementation in the try block below.
-def run_on_ui_thread(func):
-    """Fallback decorator for non-Android runs; returns the original callable."""
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
 try:
     from android import activity
     from android.runnable import run_on_ui_thread
@@ -36,6 +25,15 @@ try:
     ANDROID = True
 except ImportError:
     ANDROID = False
+
+    # No-op fallback used only when Android imports fail.
+    def run_on_ui_thread(func):
+        """Fallback decorator for non-Android runs; returns the original callable."""
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapper
 
 
 def get_shared_uris(intent):
