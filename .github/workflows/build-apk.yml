@@ -2,8 +2,10 @@ name: Build APK
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches: [ main, master ]
+  push:
+    branches: [ main, master, copilot/fix-build-issues ]
 
 permissions:
   contents: read
@@ -35,23 +37,47 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git zip unzip autoconf libtool pkg-config \
+            git zip unzip autoconf libtool libltdl-dev pkg-config \
             zlib1g-dev libncurses-dev libtinfo6 cmake \
             libffi-dev libssl-dev
 
       - name: Install Android SDK build-tools and platform-tools
         run: |
           export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
+          
+          # Accept all SDK licenses (standard + preview) upfront
           yes | sdkmanager --licenses || true
-          TARGET_BUILD_TOOLS=34.0.0
-          FALLBACK_BUILD_TOOLS=33.0.2
-          if sdkmanager --install "build-tools;${TARGET_BUILD_TOOLS}"; then
-            echo "Installed build-tools ${TARGET_BUILD_TOOLS}"
-          else
-            echo "Falling back to build-tools ${FALLBACK_BUILD_TOOLS}"
-            sdkmanager --install "build-tools;${FALLBACK_BUILD_TOOLS}"
-          fi
-          sdkmanager --install "platform-tools"
+          
+          # Create buildozer SDK directory structure
+          BUILDOZER_SDK=$HOME/.buildozer/android/platform/android-sdk
+          mkdir -p "$BUILDOZER_SDK"
+          
+          # Copy cmdline-tools to buildozer's SDK location
+          cp -r "$ANDROID_SDK_ROOT/cmdline-tools" "$BUILDOZER_SDK/" 2>/dev/null || true
+          
+          # Create the legacy 'tools' path that buildozer expects
+          mkdir -p "$BUILDOZER_SDK/tools/bin"
+          ln -sf "$BUILDOZER_SDK/cmdline-tools/latest/bin/sdkmanager" "$BUILDOZER_SDK/tools/bin/sdkmanager"
+          ln -sf "$BUILDOZER_SDK/cmdline-tools/latest/bin/avdmanager" "$BUILDOZER_SDK/tools/bin/avdmanager"
+          
+          # Copy licenses to buildozer SDK location
+          mkdir -p "$BUILDOZER_SDK/licenses"
+          cp -r "$ANDROID_SDK_ROOT/licenses/"* "$BUILDOZER_SDK/licenses/" 2>/dev/null || true
+          
+          # Install specific build-tools version at buildozer's expected location
+          "$BUILDOZER_SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$BUILDOZER_SDK" --install \
+            "build-tools;34.0.0" \
+            "platform-tools" \
+            "platforms;android-33"
+          
+          # Accept all licenses for buildozer's SDK location
+          yes | "$BUILDOZER_SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$BUILDOZER_SDK" --licenses || true
+          
+          # Verify installation
+          echo "Build-tools installed:"
+          ls -la "$BUILDOZER_SDK/build-tools/"
+          echo "SDK structure:"
+          ls -la "$BUILDOZER_SDK/"
 
       - name: Install Python dependencies
         run: |

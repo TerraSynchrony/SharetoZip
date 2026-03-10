@@ -32,9 +32,11 @@ android.archs   = arm64-v8a
 # Enable AndroidX
 android.enable_androidx = True
 
-# Pin to the build-tools installed in CI (see .github/workflows/build-apk.yml);
-# local builders should install the same version so the `aidl` compiler is present.
-android.build_tools = 34.0.0
+# Skip SDK update checks to avoid downloading RC/preview versions
+android.skip_update = True
+
+# Accept SDK license automatically
+android.accept_sdk_license = True
 
 [buildozer]
 
