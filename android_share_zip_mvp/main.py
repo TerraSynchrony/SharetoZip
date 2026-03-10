@@ -18,6 +18,7 @@ from kivy.uix.scrollview import ScrollView
 # No-op fallback used only when Android imports fail; overridden by the Android
 # implementation in the try block below.
 def run_on_ui_thread(func):
+    """Fallback decorator for non-Android runs; returns the original callable."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
