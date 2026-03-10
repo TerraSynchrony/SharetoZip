@@ -1,213 +1,216 @@
-from kivy.app import App
-from kivy.clock import Clock
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.label import Label
-from kivy.uix.button import Button
-from kivy.uix.textinput import TextInput
-from kivy.utils import platform
+"""
+SharetoZip - Android Share-to MVP
+Receives shared files via Android intent and compresses them into a .zip file.
+"""
 
 import os
-import time
-import shutil
 import zipfile
-from pathlib import Path
+from datetime import datetime
 
+from kivy.app import App
+from kivy.uix.label import Label
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.button import Button
+from kivy.uix.scrollview import ScrollView
 
-class ShareZipApp(App):
-    def build(self):
-        self.title = "Share to Zip"
-        root = BoxLayout(orientation="vertical", padding=16, spacing=12)
-        self.status = Label(
-            text="Waiting for shared files...\nOpen Android Share and pick this app.",
-            halign="left",
-            valign="top",
-            text_size=(0, None),
-        )
-        self.log = TextInput(readonly=True, multiline=True)
-        retry = Button(text="Re-read share intent", size_hint=(1, None), height=56)
-        retry.bind(on_release=lambda *_: self.process_share_intent())
-        root.add_widget(self.status)
-        root.add_widget(retry)
-        root.add_widget(self.log)
-        Clock.schedule_once(lambda *_: self.process_share_intent(), 0.5)
-        return root
-
-    def set_status(self, message: str):
-        self.status.text = message
-        self.append_log(message)
-
-    def append_log(self, message: str):
-        if self.log.text:
-            self.log.text += "\n" + message
-        else:
-            self.log.text = message
-
-    def process_share_intent(self):
-        if platform != "android":
-            self.set_status("This MVP only handles Android share intents on device.")
-            return
-
-        try:
-            uris = get_shared_uris()
-            if not uris:
-                self.set_status("No shared files found in the current Android intent.")
-                return
-
-            out_path, count = zip_shared_uris_to_downloads(uris)
-            self.set_status(f"Created ZIP with {count} file(s):\n{out_path}")
-        except Exception as exc:
-            self.set_status(f"Error: {exc}")
-
-
-def get_shared_uris():
+try:
+    from android import activity
+    from android.runnable import run_on_ui_thread
     from jnius import autoclass
 
-    PythonActivity = autoclass("org.kivy.android.PythonActivity")
     Intent = autoclass("android.content.Intent")
-    activity = PythonActivity.mActivity
-    intent = activity.getIntent()
-    action = intent.getAction()
-    uris = []
+    Uri = autoclass("android.net.Uri")
+    ClipData = autoclass("android.content.ClipData")
+    ANDROID = True
+except ImportError:
+    ANDROID = False
 
-    if action == Intent.ACTION_SEND:
-        stream = intent.getParcelableExtra(Intent.EXTRA_STREAM)
-        if stream is not None:
-            uris.append(stream)
-    elif action == Intent.ACTION_SEND_MULTIPLE:
-        parcelable_list = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
-        if parcelable_list is not None:
-            for i in range(parcelable_list.size()):
-                uris.append(parcelable_list.get(i))
+
+def get_shared_uris(intent):
+    """Extract URIs from an Android share intent (single or multiple files)."""
+    uris = []
+    if intent is None:
+        return uris
+
+    action = intent.getAction()
+    if action == "android.intent.action.SEND":
+        uri = intent.getParcelableExtra(Intent.EXTRA_STREAM)
+        if uri:
+            uris.append(uri)
+    elif action == "android.intent.action.SEND_MULTIPLE":
+        clip = intent.getClipData()
+        if clip:
+            for i in range(clip.getItemCount()):
+                uri = clip.getItemAt(i).getUri()
+                if uri:
+                    uris.append(uri)
 
     return uris
 
 
-def guess_display_name(content_resolver, uri):
-    from jnius import autoclass
-
-    OpenableColumns = autoclass("android.provider.OpenableColumns")
-    name = None
-    cursor = content_resolver.query(uri, None, None, None, None)
-    if cursor is not None:
-        try:
-            if cursor.moveToFirst():
-                idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if idx >= 0:
-                    name = cursor.getString(idx)
-        finally:
-            cursor.close()
-    if not name:
-        name = f"shared_{int(time.time() * 1000)}"
-    return sanitize_filename(name)
-
-
-def sanitize_filename(name: str) -> str:
-    keep = []
-    for ch in name:
-        if ch.isalnum() or ch in ("-", "_", ".", " "):
-            keep.append(ch)
-        else:
-            keep.append("_")
-    cleaned = "".join(keep).strip().strip(".")
-    return cleaned or "shared_file"
-
-
-def unique_name(target_dir: Path, original_name: str, used_names: set[str]) -> str:
-    stem = Path(original_name).stem or "shared_file"
-    suffix = Path(original_name).suffix
-    candidate = original_name
-    counter = 1
-    while candidate in used_names or (target_dir / candidate).exists():
-        candidate = f"{stem}_{counter}{suffix}"
-        counter += 1
-    used_names.add(candidate)
-    return candidate
-
-
-def copy_uri_to_cache(content_resolver, uri, target_path: str, chunk_size: int = 1024 * 1024):
-    pfd = content_resolver.openFileDescriptor(uri, "r")
-    if pfd is None:
-        raise RuntimeError("Unable to open shared file descriptor")
-
-    src_fd = os.dup(pfd.getFd())
+def resolve_uri_to_path(context, uri):
+    """Resolve a content URI to a real filesystem path."""
     try:
-        with os.fdopen(src_fd, "rb", closefd=True) as src, open(target_path, "wb") as out:
-            shutil.copyfileobj(src, out, length=chunk_size)
+        cursor = context.getContentResolver().query(uri, None, None, None, None)
+        if cursor and cursor.moveToFirst():
+            idx = cursor.getColumnIndex("_data")
+            if idx >= 0:
+                path = cursor.getString(idx)
+                cursor.close()
+                if path:
+                    return path
+        if cursor:
+            cursor.close()
+    except Exception:
+        pass
+
+    # Fallback: read raw bytes from the content resolver
+    return None
+
+
+def stream_uri_to_zip(context, uri, zf, arcname):
+    """Stream a content URI directly into an open ZipFile to avoid large in-memory buffers."""
+    try:
+        input_stream = context.getContentResolver().openInputStream(uri)
+    except Exception as exc:
+        raise IOError(f"Cannot open URI {uri}: {exc}") from exc
+    try:
+        buf = bytearray(65536)
+        with zf.open(arcname, "w") as dest:
+            while True:
+                n = input_stream.read(buf)
+                if n < 0:
+                    break
+                dest.write(bytes(buf[:n]))
     finally:
-        pfd.close()
+        input_stream.close()
 
 
-def create_zip_in_cache(file_paths, temp_dir: Path) -> Path:
-    zip_path = temp_dir / f"shared_{time.strftime('%Y%m%d_%H%M%S')}.zip"
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
-        for path in file_paths:
-            zf.write(path, arcname=path.name)
+def get_filename_from_uri(context, uri):
+    """Derive a filename from the URI's last path segment or display name."""
+    try:
+        cursor = context.getContentResolver().query(uri, None, None, None, None)
+        if cursor and cursor.moveToFirst():
+            idx = cursor.getColumnIndex("_display_name")
+            if idx >= 0:
+                name = cursor.getString(idx)
+                cursor.close()
+                if name:
+                    return name
+        if cursor:
+            cursor.close()
+    except Exception:
+        pass
+    last = uri.getLastPathSegment()
+    return last if last else "shared_file"
+
+
+def build_zip(context, uris):
+    """
+    Build a zip archive from the provided URIs.
+    Returns the path to the created zip file.
+    """
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = context.getExternalFilesDir(None).getAbsolutePath() if ANDROID else "/tmp"
+    zip_path = os.path.join(output_dir, f"shared_{timestamp}.zip")
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for uri in uris:
+            filename = get_filename_from_uri(context, uri) if ANDROID else str(uri)
+            path = resolve_uri_to_path(context, uri) if ANDROID else str(uri)
+            if path and os.path.exists(path):
+                zf.write(path, arcname=os.path.basename(path))
+            elif ANDROID:
+                stream_uri_to_zip(context, uri, zf, filename)
+
     return zip_path
 
 
-def publish_zip_to_downloads(local_zip_path: Path) -> str:
-    from jnius import autoclass
+class ShareToZipApp(App):
+    """Main Kivy application."""
 
-    PythonActivity = autoclass("org.kivy.android.PythonActivity")
-    MediaStore = autoclass("android.provider.MediaStore")
-    MediaColumns = autoclass("android.provider.MediaStore$MediaColumns")
-    ContentValues = autoclass("android.content.ContentValues")
-    Environment = autoclass("android.os.Environment")
+    def build(self):
+        self.title = "SharetoZip"
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=10)
 
-    activity = PythonActivity.mActivity
-    resolver = activity.getContentResolver()
+        self.status_label = Label(
+            text="Waiting for shared files...",
+            size_hint=(1, None),
+            height=60,
+            halign="center",
+        )
+        self.status_label.bind(size=self.status_label.setter("text_size"))
 
-    values = ContentValues()
-    values.put(MediaColumns.DISPLAY_NAME, local_zip_path.name)
-    values.put(MediaColumns.MIME_TYPE, "application/zip")
-    values.put(MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        scroll = ScrollView(size_hint=(1, 1))
+        self.file_list_label = Label(
+            text="",
+            size_hint_y=None,
+            halign="left",
+            valign="top",
+        )
+        self.file_list_label.bind(
+            texture_size=lambda instance, value: setattr(instance, "height", value[1])
+        )
+        scroll.add_widget(self.file_list_label)
 
-    collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-    item_uri = resolver.insert(collection, values)
-    if item_uri is None:
-        raise RuntimeError("Failed to create Downloads entry for ZIP")
+        self.zip_button = Button(
+            text="Create ZIP",
+            size_hint=(1, None),
+            height=50,
+            disabled=True,
+        )
+        self.zip_button.bind(on_press=self.create_zip)
 
-    pfd = resolver.openFileDescriptor(item_uri, "w")
-    if pfd is None:
-        raise RuntimeError("Failed to open Downloads output descriptor")
+        self.layout.add_widget(self.status_label)
+        self.layout.add_widget(scroll)
+        self.layout.add_widget(self.zip_button)
 
-    dst_fd = os.dup(pfd.getFd())
-    try:
-        with open(local_zip_path, "rb") as src, os.fdopen(dst_fd, "wb", closefd=True) as dst:
-            shutil.copyfileobj(src, dst, length=1024 * 1024)
-    finally:
-        pfd.close()
+        self._pending_uris = []
 
-    return f"Downloads/{local_zip_path.name}"
+        if ANDROID:
+            activity.bind(on_new_intent=self.on_new_intent)
+            self.handle_intent(activity.getIntent())
 
+        return self.layout
 
-def zip_shared_uris_to_downloads(uris):
-    from jnius import autoclass
+    def on_new_intent(self, intent):
+        self.handle_intent(intent)
 
-    PythonActivity = autoclass("org.kivy.android.PythonActivity")
-    activity = PythonActivity.mActivity
-    resolver = activity.getContentResolver()
+    def handle_intent(self, intent):
+        """Process an incoming Android intent."""
+        uris = get_shared_uris(intent)
+        if uris:
+            self._pending_uris = uris
+            names = []
+            for uri in uris:
+                if ANDROID:
+                    context = activity.getApplicationContext()
+                    names.append(get_filename_from_uri(context, uri))
+                else:
+                    names.append(str(uri))
+            self.file_list_label.text = "\n".join(f"• {n}" for n in names)
+            self.status_label.text = f"{len(uris)} file(s) ready to zip."
+            self.zip_button.disabled = False
+        else:
+            self.status_label.text = "No files received. Use 'Share to' from another app."
 
-    cache_root = Path(activity.getCacheDir().getAbsolutePath()) / "incoming_share"
-    if cache_root.exists():
-        shutil.rmtree(cache_root)
-    cache_root.mkdir(parents=True, exist_ok=True)
-
-    incoming_dir = cache_root / "files"
-    incoming_dir.mkdir(parents=True, exist_ok=True)
-
-    used_names = set()
-    file_paths = []
-    for uri in uris:
-        name = unique_name(incoming_dir, guess_display_name(resolver, uri), used_names)
-        target = incoming_dir / name
-        copy_uri_to_cache(resolver, uri, str(target))
-        file_paths.append(target)
-
-    temp_zip = create_zip_in_cache(file_paths, cache_root)
-    published_path = publish_zip_to_downloads(temp_zip)
-    return published_path, len(file_paths)
+    def create_zip(self, _instance):
+        """Compress pending files and report the result."""
+        if not self._pending_uris:
+            self.status_label.text = "No files to zip."
+            return
+        try:
+            if ANDROID:
+                context = activity.getApplicationContext()
+            else:
+                context = None
+            zip_path = build_zip(context, self._pending_uris)
+            self.status_label.text = f"ZIP created:\n{zip_path}"
+            self.zip_button.disabled = True
+            self._pending_uris = []
+        except Exception as exc:
+            self.status_label.text = f"Error: {exc}"
 
 
 if __name__ == "__main__":
-    ShareZipApp().run()
+    ShareToZipApp().run()

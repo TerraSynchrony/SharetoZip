@@ -1,53 +1,89 @@
-# ShareToZip MVP
+# SharetoZip – Android MVP
 
-A lightweight Python MVP for Android that appears in the system Share sheet, accepts one or many files of any type, and creates a ZIP archive directly in **Downloads**.
+Lightweight Python app that appears in Android's **Share to** menu.  
+Select any files or folders from a cloud storage app or your device, share them here, and get a neatly compressed `.zip` file saved to your device.
 
-## Stack
-- Python
-- Kivy
-- pyjnius
-- Buildozer
+---
 
-## What it does
-- Registers as a share target for `*/*`
-- Handles both `ACTION_SEND` and `ACTION_SEND_MULTIPLE`
-- Reads Android `content://` URIs through `ContentResolver`
-- Copies shared files into app cache
-- Builds a compressed ZIP
-- Publishes the ZIP into the public **Downloads** collection using `MediaStore`
+## Features
 
-## Why this Downloads approach works
-Instead of writing to a raw filesystem path, this MVP inserts the ZIP into Android's Downloads provider with `MediaStore.Downloads.EXTERNAL_CONTENT_URI`. That keeps it compatible with modern Android scoped storage on API 29+.
+- Registers as a Share target for **any file type** (`*/*`)
+- Accepts **single or multiple** files in one share action
+- Creates a timestamped `.zip` using Python's built-in `zipfile` module
+- Built with [Kivy](https://kivy.org/) and packaged with [Buildozer](https://buildozer.readthedocs.io/)
 
-## Fast local build
+---
+
+## Project structure
+
+```
+android_share_zip_mvp/
+├── main.py              # Application entry point (Kivy + intent handling)
+├── buildozer.spec       # Buildozer build configuration
+├── intent_filters.xml   # Android intent-filter declarations
+└── README.md            # This file
+```
+
+---
+
+## Prerequisites
+
+| Tool | Version |
+|------|---------|
+| Python | 3.10+ |
+| Buildozer | 1.5+ |
+| Android SDK | API 33 |
+| Android NDK | r25c or later |
+
+Install Buildozer:
 
 ```bash
-pip install buildozer cython
-sudo apt update
-sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses-dev libtinfo6 cmake libffi-dev libssl-dev
+pip install buildozer
+```
+
+---
+
+## Building the APK locally
+
+```bash
+cd android_share_zip_mvp
 buildozer android debug
 ```
 
-APK output is typically under:
+The resulting APK will be at `bin/sharetozip-0.1.0-arm64-v8a-debug.apk`.
+
+To deploy directly to a connected device:
 
 ```bash
-bin/sharetozip-0.1-arm64-v8a-debug.apk
+buildozer android debug deploy run
 ```
 
-## Rapid deploy options
-1. Sideload the APK directly with `adb install -r <apk>`.
-2. Use GitHub Actions to build on push.
-3. For a no-store MVP, distribute the debug APK internally.
+---
 
-## Expected output
-After sharing files into the app, the ZIP will appear as something like:
+## Building via GitHub Actions
 
-```
-Downloads/shared_20260310_181500.zip
-```
+Push to `main` (or open a pull request) and the workflow defined in  
+`.github/workflows/build-apk.yml` will automatically build the APK and upload it as an artifact.
 
-## Notes
-- No special storage permission is needed for writing into Downloads through `MediaStore` on modern Android.
-- Shared URI access is temporary and granted by Android at share time.
-- Duplicate source filenames are automatically de-conflicted inside the archive.
-- This version uses buffered file descriptor copies, so it is substantially better for large files than the earlier byte-by-byte MVP.
+---
+
+## How it works
+
+1. Another app (e.g. Files, Google Drive) triggers an `ACTION_SEND` or `ACTION_SEND_MULTIPLE` intent aimed at SharetoZip.
+2. `main.py` receives the intent, resolves each URI to a filename, and lists them in the UI.
+3. The user taps **Create ZIP** – the app reads each file through the content resolver and writes them into a single `.zip` archive in the app's external files directory.
+
+---
+
+## Permissions
+
+| Permission | Reason |
+|------------|--------|
+| `READ_EXTERNAL_STORAGE` | Read files shared from external storage |
+| `WRITE_EXTERNAL_STORAGE` | Save the resulting `.zip` to external storage |
+
+---
+
+## License
+
+MIT
