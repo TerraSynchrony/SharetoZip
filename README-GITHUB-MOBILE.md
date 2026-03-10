@@ -19,7 +19,7 @@ Upload the contents of this bundle so the repo contains:
 5. Run **Build APK**.
 6. After the workflow finishes, open the run and download the `sharetozip-debug-apk` artifact.
 7. Install the APK on Android when prompted.
-8. Share multiple files into the app and check **Downloads** for the generated ZIP.
+8. Share multiple files into the app, then use a file manager to open the app's external files directory (for example, `Android/data/<app package>/files/`) and locate the generated ZIP there.
 
 ## Important note
 GitHub's mobile web UI can be awkward with nested folders. If your browser/file picker cannot preserve the `.github/workflows` path, create that file directly in GitHub's web editor and upload only the `android_share_zip_mvp` folder files.
