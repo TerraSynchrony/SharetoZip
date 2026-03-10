@@ -20,10 +20,13 @@ try:
 
     Intent = autoclass("android.content.Intent")
     Uri = autoclass("android.net.Uri")
-    ClipData = autoclass("android.content.ClipData")
     ANDROID = True
 except ImportError:
     ANDROID = False
+
+    def run_on_ui_thread(f):
+        """No-op decorator when running outside Android."""
+        return f
 
 
 def get_shared_uris(intent):
@@ -38,10 +41,10 @@ def get_shared_uris(intent):
         if uri:
             uris.append(uri)
     elif action == "android.intent.action.SEND_MULTIPLE":
-        clip = intent.getClipData()
-        if clip:
-            for i in range(clip.getItemCount()):
-                uri = clip.getItemAt(i).getUri()
+        stream_list = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
+        if stream_list is not None:
+            for i in range(stream_list.size()):
+                uri = stream_list.get(i)
                 if uri:
                     uris.append(uri)
 
@@ -78,7 +81,9 @@ def stream_uri_to_zip(context, uri, zf, arcname):
         buf = bytearray(65536)
         with zf.open(arcname, "w") as dest:
             while True:
-                n = input_stream.read(buf)
+                # Use the explicit (byte[], offset, length) overload so pyjnius
+                # can unambiguously round-trip the buffer across the JNI bridge.
+                n = input_stream.read(buf, 0, len(buf))
                 if n < 0:
                     break
                 dest.write(bytes(buf[:n]))
@@ -173,6 +178,7 @@ class ShareToZipApp(App):
 
         return self.layout
 
+    @run_on_ui_thread
     def on_new_intent(self, intent):
         self.handle_intent(intent)
 
